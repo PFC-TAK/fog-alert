@@ -95,7 +95,7 @@ def send(topic, title, message):
     req = urllib.request.Request(
         NTFY_URL + topic,
         data=message.encode("utf-8"),
-        headers={"Title": title, "Tags": "fog"},
+        headers={"Title": title},
         method="POST",
     )
     with urllib.request.urlopen(req, timeout=30) as resp:
@@ -108,28 +108,29 @@ def main():
     tomorrow = datetime.now(ZoneInfo(TIMEZONE)).date() + timedelta(days=1)
 
     sections = []
-    found = set()
+    all_hits = []
     for name, lat, lon in SPOTS:
         sunrise, hours = hours_around_sunrise(fetch_forecast(lat, lon), tomorrow)
         hits = [h for h in hours if h["label"]]
-        found.update(h["label"] for h in hits)
+        all_hits.extend(hits)
         shown = hours if always_notify else hits
         if shown:
             lines = [f"{name}, sunrise {sunrise:%H:%M}"] + [format_hour(h) for h in shown]
             sections.append("\n".join(lines))
 
-    if "Fog" in found:
-        title = "Fog tomorrow morning"
-    elif "Mist" in found:
-        title = "Mist possible tomorrow morning"
+    # Short title so it fits on a watch: "Fog 6:00", "Mist 7:00" or "No fog"
+    fog_hits = [h for h in all_hits if h["label"] == "Fog"]
+    first = min(fog_hits or all_hits, key=lambda h: h["time"], default=None)
+    if first:
+        title = f"{first['label']} {first['time'].hour}:{first['time'].minute:02d}"
     else:
-        title = "No fog tomorrow (test run)"
+        title = "No fog"
     message = "\n\n".join(sections)
 
     print(title)
     print(message)
 
-    if not found and not always_notify:
+    if not all_hits and not always_notify:
         print("Nothing to send.")
         return
     if not topic:
