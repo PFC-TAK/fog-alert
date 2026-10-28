@@ -1,0 +1,23 @@
+name: Fog check
+
+on:
+  schedule:
+    - cron: '0 20 * * *'
+      timezone: 'Europe/Berlin'
+  workflow_dispatch:
+    inputs:
+      always_notify:
+        description: 'Send a notification even if no fog is forecast (for testing)'
+        type: boolean
+        default: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - run: python3 fog_check.py
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          ALWAYS_NOTIFY: ${{ inputs.always_notify }}
