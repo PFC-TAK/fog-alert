@@ -76,19 +76,27 @@ def hours_around_sunrise(data, day):
             rh = hourly["relative_humidity_2m"][i]
             wind = hourly["wind_speed_10m"][i]
             label = classify(hourly["weather_code"][i], vis, rh, wind)
-            hours.append({"time": when, "label": label, "vis": vis, "rh": rh, "wind": wind})
+            hours.append({"time": when, "label": label, "vis": vis, "rh": rh})
     return sunrise, hours
 
 
+def hm(t):
+    """6:00 instead of 06:00, shorter on the watch."""
+    return f"{t.hour}:{t.minute:02d}"
+
+
 def format_hour(h):
+    """Short line for the watch, e.g. '6:00 Fog 300m 99%' (time, label, visibility, humidity)."""
     if h["vis"] is None:
-        vis = "vis n/a"
+        vis = "n/a"
     elif h["vis"] < 1000:
-        vis = f"vis {round(h['vis'])} m"
+        vis = f"{round(h['vis'])}m"
+    elif h["vis"] < 10000:
+        vis = f"{h['vis'] / 1000:.1f}km"
     else:
-        vis = f"vis {h['vis'] / 1000:.1f} km"
+        vis = f"{round(h['vis'] / 1000)}km"
     label = h["label"] or "no fog"
-    return f"{h['time']:%H:%M} {label}, {vis}, {h['rh']}% humidity, wind {h['wind']} km/h"
+    return f"{hm(h['time'])} {label} {vis} {h['rh']}%"
 
 
 def send(topic, title, message):
@@ -115,14 +123,15 @@ def main():
         all_hits.extend(hits)
         shown = hours if always_notify else hits
         if shown:
-            lines = [f"{name}, sunrise {sunrise:%H:%M}"] + [format_hour(h) for h in shown]
+            lines = [name] if len(SPOTS) > 1 else []
+            lines += [f"Sunrise {hm(sunrise)}"] + [format_hour(h) for h in shown]
             sections.append("\n".join(lines))
 
     # Short title so it fits on a watch: "Fog 6:00", "Mist 7:00" or "No fog"
     fog_hits = [h for h in all_hits if h["label"] == "Fog"]
     first = min(fog_hits or all_hits, key=lambda h: h["time"], default=None)
     if first:
-        title = f"{first['label']} {first['time'].hour}:{first['time'].minute:02d}"
+        title = f"{first['label']} {hm(first['time'])}"
     else:
         title = "No fog"
     message = "\n\n".join(sections)
