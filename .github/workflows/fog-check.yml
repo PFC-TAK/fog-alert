@@ -1,9 +1,8 @@
 name: Fog check
 
+# Started every evening at 20:00 by cron-job.org.
+# GitHub's own schedule ran hours late, so it isn't used.
 on:
-  schedule:
-    - cron: '0 20 * * *'
-      timezone: 'Europe/Berlin'
   workflow_dispatch:
     inputs:
       always_notify:
