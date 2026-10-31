@@ -60,10 +60,14 @@ def classify(code, vis, humidity, wind):
     return None
 
 
-def hours_around_sunrise(data, day):
-    """Return (sunrise, list of hours) for the window around sunrise on `day`."""
-    daily = data["daily"]
-    sunrise = datetime.fromisoformat(daily["sunrise"][daily["time"].index(day.isoformat())])
+def hours_around_sunrise(data, now):
+    """Return (sunrise, list of hours) for the window around the next sunrise after `now`.
+
+    Using the next sunrise (instead of "tomorrow's date") keeps it correct
+    even if the run starts late, after midnight.
+    """
+    sunrises = [datetime.fromisoformat(s) for s in data["daily"]["sunrise"]]
+    sunrise = next(s for s in sunrises if s > now)
     start = sunrise - timedelta(minutes=MINUTES_BEFORE_SUNRISE)
     end = sunrise + timedelta(minutes=MINUTES_AFTER_SUNRISE)
 
@@ -113,12 +117,13 @@ def send(topic, title, message):
 def main():
     always_notify = os.environ.get("ALWAYS_NOTIFY", "").lower() == "true"
     topic = os.environ.get("NTFY_TOPIC", "").strip()
-    tomorrow = datetime.now(ZoneInfo(TIMEZONE)).date() + timedelta(days=1)
+    # Local time without timezone info, to compare with the forecast times
+    now = datetime.now(ZoneInfo(TIMEZONE)).replace(tzinfo=None)
 
     sections = []
     all_hits = []
     for name, lat, lon in SPOTS:
-        sunrise, hours = hours_around_sunrise(fetch_forecast(lat, lon), tomorrow)
+        sunrise, hours = hours_around_sunrise(fetch_forecast(lat, lon), now)
         hits = [h for h in hours if h["label"]]
         all_hits.extend(hits)
         shown = hours if always_notify else hits
