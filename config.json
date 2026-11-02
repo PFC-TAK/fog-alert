@@ -1,0 +1,33 @@
+{
+  "timezone": "Europe/Berlin",
+  "minutes_before_sunrise": 90,
+  "minutes_after_sunrise": 90,
+  "fog": {
+    "visibility_m": 1000,
+    "spread_c": 0.5,
+    "wind_kmh": 5,
+    "low_cloud_percent": 90
+  },
+  "mist": {
+    "visibility_m": 3000,
+    "spread_c": 1.0,
+    "wind_kmh": 7
+  },
+  "spots": [
+    {"name": "Poller Wiesen", "lat": 50.9183, "lon": 6.9767},
+    {"name": "Rheinpark", "lat": 50.9480, "lon": 6.9760},
+    {"name": "Mülheimer Brücke", "lat": 50.9647, "lon": 6.9803},
+    {"name": "Niehler Hafen", "lat": 50.9800, "lon": 6.9786},
+    {"name": "Fühlinger See", "lat": 51.0198, "lon": 6.9240},
+    {"name": "Fähre Langel", "lat": 51.0555, "lon": 6.9168},
+    {"name": "Worringer Bruch", "lat": 51.0550, "lon": 6.8650},
+    {"name": "Weißer Bogen", "lat": 50.8730, "lon": 7.0360},
+    {"name": "Decksteiner Weiher", "lat": 50.9120, "lon": 6.8890},
+    {"name": "Grüngürtel", "lat": 50.9400, "lon": 6.8720},
+    {"name": "Melaten", "lat": 50.9380, "lon": 6.9160},
+    {"name": "Aachener Weiher", "lat": 50.9340, "lon": 6.9310},
+    {"name": "MediaPark", "lat": 50.9478, "lon": 6.9447},
+    {"name": "Königsforst", "lat": 50.9326, "lon": 7.1330},
+    {"name": "Wahner Heide", "lat": 50.8547, "lon": 7.1444}
+  ]
+}
