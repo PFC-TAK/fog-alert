@@ -95,6 +95,11 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
   z-index: 0;
 }
 .leaflet-container { font: 0.8rem var(--font-body); }
+/* Calm the colourful OSM tiles so the dots stand out; invert them at night */
+.leaflet-tile-pane { filter: saturate(0.45) contrast(0.95); }
+@media (prefers-color-scheme: dark) {
+  .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) saturate(0.35) brightness(0.8) contrast(0.9); }
+}
 .leaflet-tooltip {
   background: var(--surface);
   color: var(--fg);
@@ -187,7 +192,7 @@ footer a { color: var(--accent); }
       <span class="cell sunrise">Sunrise hour</span>
     </div>
     <div>Gap is temperature minus dew point. Under 1° the air is close to saturated. Tap a spot name to open it in Google Maps, or a dot on the map to jump to that spot.</div>
-    <div>Forecast: DWD ICON-D2 (2 km) via <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>. Observation: DWD station data via <a href="https://brightsky.dev/" target="_blank" rel="noopener">Bright Sky</a>. Map: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors, © <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>.</div>
+    <div>Forecast: DWD ICON-D2 (2 km) via <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>. Observation: DWD station data via <a href="https://brightsky.dev/" target="_blank" rel="noopener">Bright Sky</a>. Map: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors.</div>
   </footer>
 </div>
 
@@ -425,10 +430,6 @@ function renderSpots(m) {
 // --- Map -------------------------------------------------------------------
 let map = null, tiles = null, markerLayer = null, fitted = false;
 
-function tileUrl() {
-  const style = dark.matches ? "dark_all" : "light_all";
-  return `https://{s}.basemaps.cartocdn.com/${style}/{z}/{x}/{y}{r}.png`;
-}
 
 function initMap() {
   if (!window.L) { document.getElementById("map-section").hidden = true; return; }
@@ -439,12 +440,13 @@ function initMap() {
     scrollWheelZoom: false
   });
   map.attributionControl.setPrefix(false);
-  tiles = L.tileLayer(tileUrl(), {
-    subdomains: "abcd", maxZoom: 18,
-    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>'
+  // Standard OpenStreetMap tiles: no key needed. Dark mode is done with a CSS filter on the tiles.
+  tiles = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
   }).addTo(map);
   markerLayer = L.layerGroup().addTo(map);
-  dark.addEventListener("change", () => { tiles.setUrl(tileUrl()); render(); });
+  dark.addEventListener("change", render); // dot colours follow the theme
 }
 
 function renderMap(m) {
