@@ -14,20 +14,20 @@
     "wind_kmh": 7
   },
   "spots": [
-    {"name": "Poller Wiesen", "lat": 50.9183, "lon": 6.9767},
-    {"name": "Rheinpark", "lat": 50.9480, "lon": 6.9760},
-    {"name": "Mülheimer Brücke", "lat": 50.9647, "lon": 6.9803},
-    {"name": "Niehler Hafen", "lat": 50.9800, "lon": 6.9786},
-    {"name": "Fühlinger See", "lat": 51.0198, "lon": 6.9240},
-    {"name": "Fähre Langel", "lat": 51.0555, "lon": 6.9168},
-    {"name": "Worringer Bruch", "lat": 51.0550, "lon": 6.8650},
-    {"name": "Weißer Bogen", "lat": 50.8730, "lon": 7.0360},
-    {"name": "Decksteiner Weiher", "lat": 50.9120, "lon": 6.8890},
-    {"name": "Grüngürtel", "lat": 50.9400, "lon": 6.8720},
-    {"name": "Melaten", "lat": 50.9380, "lon": 6.9160},
-    {"name": "Aachener Weiher", "lat": 50.9340, "lon": 6.9310},
-    {"name": "MediaPark", "lat": 50.9478, "lon": 6.9447},
-    {"name": "Königsforst", "lat": 50.9326, "lon": 7.1330},
-    {"name": "Wahner Heide", "lat": 50.8547, "lon": 7.1444}
+    {"name": "Poller Wiesen", "lat": 50.9183, "lon": 6.9767, "area": "Poll"},
+    {"name": "Rheinpark", "lat": 50.948, "lon": 6.976, "area": "Deutz"},
+    {"name": "Mülheimer Brücke", "lat": 50.9647, "lon": 6.9803, "area": "Mülheim/Riehl"},
+    {"name": "Niehler Hafen", "lat": 50.98, "lon": 6.9786, "area": "Niehl"},
+    {"name": "Fühlinger See", "lat": 51.0198, "lon": 6.924, "area": "Fühlingen"},
+    {"name": "Fähre Langel", "lat": 51.0555, "lon": 6.9168, "area": "Merkenich"},
+    {"name": "Worringer Bruch", "lat": 51.055, "lon": 6.865, "area": "Worringen"},
+    {"name": "Weißer Bogen", "lat": 50.873, "lon": 7.036, "area": "Weiß"},
+    {"name": "Decksteiner Weiher", "lat": 50.912, "lon": 6.889, "area": "Lindenthal"},
+    {"name": "Grüngürtel", "lat": 50.94, "lon": 6.872, "area": "Müngersdorf"},
+    {"name": "Melaten", "lat": 50.938, "lon": 6.916, "area": "Lindenthal"},
+    {"name": "Aachener Weiher", "lat": 50.934, "lon": 6.931, "area": "Neustadt-Süd"},
+    {"name": "MediaPark", "lat": 50.9478, "lon": 6.9447, "area": "Neustadt-Nord"},
+    {"name": "Königsforst", "lat": 50.9326, "lon": 7.133, "area": "Rath/Heumar"},
+    {"name": "Wahner Heide", "lat": 50.8547, "lon": 7.1444, "area": "by the airport"}
   ]
 }

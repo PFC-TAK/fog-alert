@@ -8,8 +8,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
-/* Layout: one narrow column you read at the door. Summary, live observation, then every spot with an hour strip. */
+/* Layout: one narrow column you read at the door. Morning tabs and summary, map, live observation, then every spot with an hour strip. */
 :root {
   --bg: #eef1f2;
   --surface: #ffffff;
@@ -70,19 +71,55 @@ button {
   cursor: pointer;
 }
 button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.summary { display: grid; gap: 12px; }
 .summary h2 { margin: 0; font-size: 1.9rem; line-height: 1.15; font-weight: 600; text-wrap: balance; }
-.summary p { margin: 6px 0 0; color: var(--muted); font-family: var(--font-data); font-size: 0.9rem; }
+.summary p { margin: 0; color: var(--muted); font-family: var(--font-data); font-size: 0.9rem; }
+.summary p.note { font-family: var(--font-body); font-size: 0.85rem; }
+.tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.tab {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  color: var(--muted);
+  padding: 8px 12px;
+}
+.tab .when { font-weight: 600; color: var(--fg); }
+.tab .what { font: 500 0.78rem var(--font-data); }
+.tab[aria-selected="true"] { background: var(--surface); border-color: var(--fg); }
+.tab.fog .what, .tab.mist .what { color: var(--fg); }
+#map {
+  height: 320px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  z-index: 0;
+}
+.leaflet-container { font: 0.8rem var(--font-body); }
+.leaflet-tooltip {
+  background: var(--surface);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  box-shadow: none;
+  font: 600 0.75rem var(--font-body);
+  padding: 2px 6px;
+}
+.leaflet-tooltip-top::before { border-top-color: var(--line); }
+.leaflet-control-attribution { background: var(--surface) !important; color: var(--muted); }
+.leaflet-control-attribution a { color: var(--accent); }
 .label { margin: 0 0 8px; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
 .obs { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
 .obs-main { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .obs-main strong { font-size: 1.3rem; }
 .facts { font-family: var(--font-data); font-size: 0.85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 .spots { display: grid; gap: 10px; }
-.spot { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 10px; min-width: 0; }
+.spot { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 10px; min-width: 0; scroll-margin: 80px; }
 .spot.clear { background: transparent; padding: 8px 14px; gap: 2px; }
 .spot.clear .names a { color: var(--muted); }
+.spot.flash { border-color: var(--accent); }
 .spot-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
-.names { min-width: 0; font-weight: 600; }
+.place { min-width: 0; }
+.names { font-weight: 600; }
+.area { color: var(--muted); font-size: 0.82rem; }
 .names a { color: var(--fg); text-decoration: none; border-bottom: 1px solid var(--line); }
 .chip { flex: none; font: 500 0.78rem var(--font-data); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
 .chip.fog { background: var(--fog); color: var(--fog-text); border-color: var(--fog); }
@@ -105,9 +142,8 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
 .legend .cell { width: auto; padding: 2px 8px; }
 footer { color: var(--muted); font-size: 0.8rem; display: grid; gap: 8px; }
 footer a { color: var(--accent); }
-.error { color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
 @media (prefers-reduced-motion: no-preference) {
-  .spot, .obs { transition: opacity 0.2s; }
+  .spot, .obs { transition: opacity 0.2s, border-color 0.3s; }
 }
 .loading .spot, .loading .obs { opacity: 0.5; }
 </style>
@@ -123,8 +159,14 @@ footer a { color: var(--accent); }
   </header>
 
   <section class="summary" aria-live="polite">
+    <div class="tabs" id="tabs" role="tablist" aria-label="Which morning"></div>
     <h2 id="headline">Checking the forecast…</h2>
     <p id="window"></p>
+    <p id="note" class="note" hidden></p>
+  </section>
+
+  <section id="map-section">
+    <div id="map" role="img" aria-label="Map of the spots, coloured by forecast"></div>
   </section>
 
   <section>
@@ -144,18 +186,22 @@ footer a { color: var(--accent); }
       <span class="cell">Clear</span>
       <span class="cell sunrise">Sunrise hour</span>
     </div>
-    <div>Gap is temperature minus dew point. Under 1° the air is close to saturated. Tap a spot name to open it in Google Maps.</div>
-    <div>Forecast: DWD ICON-D2 (2 km) via <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>. Observation: DWD station data via <a href="https://brightsky.dev/" target="_blank" rel="noopener">Bright Sky</a>.</div>
+    <div>Gap is temperature minus dew point. Under 1° the air is close to saturated. Tap a spot name to open it in Google Maps, or a dot on the map to jump to that spot.</div>
+    <div>Forecast: DWD ICON-D2 (2 km) via <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>. Observation: DWD station data via <a href="https://brightsky.dev/" target="_blank" rel="noopener">Bright Sky</a>. Map: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors, © <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>.</div>
   </footer>
 </div>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const FOG_CODES = new Set([45, 48]);
 const HOURLY = ["weather_code", "temperature_2m", "dew_point_2m", "wind_speed_10m", "cloud_cover_low"];
 const OBS_LAT = 50.866, OBS_LON = 7.143; // Köln/Bonn airport
+const D2_RANGE_HOURS = 45; // ICON-D2 reaches ~48 h; past that the forecast comes from the 7 km ICON-EU
 
 let C = null;
 let loadedAt = 0;
+const state = { now: null, mornings: [], sel: 0 };
+const dark = window.matchMedia("(prefers-color-scheme: dark)");
 
 // Local wall-clock times as "YYYY-MM-DDTHH:MM" strings, like Open-Meteo returns them.
 function nowLocal(tz) {
@@ -170,6 +216,16 @@ const toMs = s => Date.parse(s.slice(0, 16) + ":00Z");
 const fromMs = ms => new Date(ms).toISOString().slice(0, 16);
 const hm = s => `${Number(s.slice(11, 13))}:${s.slice(14, 16)}`;
 const hour = s => Number(s.slice(11, 13));
+const addDays = (date, n) => fromMs(toMs(date + "T00:00") + n * 86400000).slice(0, 10);
+const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+function dayLabel(date) {
+  const today = state.now.slice(0, 10);
+  if (date === today) return "This morning";
+  if (date === addDays(today, 1)) return "Tomorrow";
+  return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })
+    .format(new Date(date + "T12:00:00Z"));
+}
 
 function fmtVis(v) {
   if (v == null) return null;
@@ -225,8 +281,8 @@ async function fetchObservation() {
   return res.json();
 }
 
-function hoursAroundSunrise(data, now) {
-  const sunrise = data.daily.sunrise.find(s => s > now);
+function hoursAroundSunrise(data, date, now) {
+  const sunrise = data.daily.sunrise[data.daily.time.indexOf(date)];
   const start = toMs(sunrise) - C.minutes_before_sunrise * 60000;
   const end = toMs(sunrise) + C.minutes_after_sunrise * 60000;
   const H = data.hourly;
@@ -253,9 +309,25 @@ function groupByGrid(spots, forecasts) {
     const d = forecasts[i];
     const key = `${d.latitude.toFixed(3)},${d.longitude.toFixed(3)}`;
     if (groups.has(key)) groups.get(key).spots.push(spot);
-    else groups.set(key, { spots: [spot], data: d });
+    else groups.set(key, { key, spots: [spot], data: d });
   });
   return [...groups.values()];
+}
+
+// Work out fog/mist per spot group for one morning, sorted fog first, then mist, earliest first.
+function buildMorning(groups, date, now) {
+  const rank = { Fog: 0, Mist: 1, null: 2 };
+  const rows = groups.map(g => {
+    const r = hoursAroundSunrise(g.data, date, now);
+    const hits = r.hours.filter(h => h.label);
+    const label = hits.some(h => h.label === "Fog") ? "Fog" : hits.length ? "Mist" : null;
+    return { ...g, ...r, hits, label };
+  });
+  rows.sort((a, b) => rank[a.label] - rank[b.label] ||
+    (a.hits[0]?.time || "~").localeCompare(b.hits[0]?.time || "~"));
+  const count = label => rows.filter(r => r.label === label).reduce((n, r) => n + r.spots.length, 0);
+  const fog = count("Fog"), mist = count("Mist");
+  return { date, rows, sunrise: rows[0].sunrise, fog, mist, label: fog ? "Fog" : mist ? "Mist" : null };
 }
 
 function el(tag, cls, text) {
@@ -265,23 +337,51 @@ function el(tag, cls, text) {
   return e;
 }
 
-function renderSpots(groups, now) {
-  const rank = { Fog: 0, Mist: 1, null: 2 };
-  let sunrise = null;
-  const rows = groups.map(g => {
-    const r = hoursAroundSunrise(g.data, now);
-    sunrise = r.sunrise;
-    const hits = r.hours.filter(h => h.label);
-    const label = hits.some(h => h.label === "Fog") ? "Fog" : hits.length ? "Mist" : null;
-    return { ...g, ...r, hits, label };
+function renderTabs() {
+  const box = document.getElementById("tabs");
+  box.replaceChildren();
+  state.mornings.forEach((m, i) => {
+    const b = el("button", "tab" + (m.label ? " " + m.label.toLowerCase() : ""));
+    b.type = "button";
+    b.id = `tab-${i}`;
+    b.setAttribute("role", "tab");
+    b.setAttribute("aria-selected", String(i === state.sel));
+    const what = m.fog ? `Fog · ${m.fog} spot${m.fog > 1 ? "s" : ""}`
+      : m.mist ? `Mist · ${m.mist} spot${m.mist > 1 ? "s" : ""}` : "No fog";
+    b.append(el("span", "when", dayLabel(m.date)), el("span", "what", what));
+    b.addEventListener("click", () => { state.sel = i; render(); });
+    box.append(b);
   });
-  rows.sort((a, b) => rank[a.label] - rank[b.label] ||
-    (a.hits[0]?.time || "~").localeCompare(b.hits[0]?.time || "~"));
+}
 
+function renderSummary(m) {
+  const plural = n => (n === 1 ? "1 spot" : `${n} spots`);
+  let text = "No fog expected";
+  if (m.fog) text = `Fog at ${plural(m.fog)}`;
+  else if (m.mist) text = `Mist at ${plural(m.mist)}`;
+  if (m.fog && m.mist) text += `, mist at ${plural(m.mist)}`;
+  document.getElementById("headline").textContent = text;
+  const start = fromMs(toMs(m.sunrise) - C.minutes_before_sunrise * 60000);
+  const end = fromMs(toMs(m.sunrise) + C.minutes_after_sunrise * 60000);
+  document.getElementById("window").textContent = `Sunrise ${hm(m.sunrise)} · checking ${hm(start)}–${hm(end)}`;
+
+  const note = document.getElementById("note");
+  if (state.sel > 0) {
+    const ahead = (toMs(m.sunrise) - toMs(state.now)) / 3600000;
+    note.textContent = "Further ahead, so less certain. Use it as a heads-up and check again the evening before." +
+      (ahead > D2_RANGE_HOURS ? " This far out the forecast comes from DWD's coarser 7 km model." : "");
+    note.hidden = false;
+  } else {
+    note.hidden = true;
+  }
+}
+
+function renderSpots(m) {
   const box = document.getElementById("spots");
   box.replaceChildren();
-  for (const row of rows) {
+  for (const row of m.rows) {
     const card = el("article", "spot " + (row.label ? row.label.toLowerCase() : "clear"));
+    card.id = "spot-" + row.key;
     const head = el("div", "spot-head");
     const names = el("div", "names");
     row.spots.forEach((s, i) => {
@@ -297,7 +397,11 @@ function renderSpots(groups, now) {
       const first = hour(row.hits[0].time), last = hour(row.hits[row.hits.length - 1].time);
       chipText = `${row.label} ${first === last ? first + "h" : first + "–" + last + "h"}`;
     }
-    head.append(names, el("span", "chip " + (row.label ? row.label.toLowerCase() : ""), chipText));
+    const place = el("div", "place");
+    place.append(names);
+    const areas = [...new Set(row.spots.map(s => s.area).filter(Boolean))];
+    if (areas.length) place.append(el("div", "area", areas.join(", ")));
+    head.append(place, el("span", "chip " + (row.label ? row.label.toLowerCase() : ""), chipText));
 
     const strip = el("div", "strip");
     const sunriseHour = row.sunrise.slice(0, 13);
@@ -316,21 +420,76 @@ function renderSpots(groups, now) {
     if (pick) card.append(el("div", "facts", `${hm(pick.time)} · ${facts(pick)}`));
     box.append(card);
   }
-  return { rows, sunrise };
 }
 
-function renderSummary(rows, sunrise) {
-  const count = label => rows.filter(r => r.label === label).reduce((n, r) => n + r.spots.length, 0);
-  const fog = count("Fog"), mist = count("Mist");
-  const plural = n => (n === 1 ? "1 spot" : `${n} spots`);
-  let text = "No fog expected";
-  if (fog) text = `Fog at ${plural(fog)}`;
-  else if (mist) text = `Mist at ${plural(mist)}`;
-  if (fog && mist) text += `, mist at ${plural(mist)}`;
-  document.getElementById("headline").textContent = text;
-  const start = fromMs(toMs(sunrise) - C.minutes_before_sunrise * 60000);
-  const end = fromMs(toMs(sunrise) + C.minutes_after_sunrise * 60000);
-  document.getElementById("window").textContent = `Sunrise ${hm(sunrise)} · checking ${hm(start)}–${hm(end)}`;
+// --- Map -------------------------------------------------------------------
+let map = null, tiles = null, markerLayer = null, fitted = false;
+
+function tileUrl() {
+  const style = dark.matches ? "dark_all" : "light_all";
+  return `https://{s}.basemaps.cartocdn.com/${style}/{z}/{x}/{y}{r}.png`;
+}
+
+function initMap() {
+  if (!window.L) { document.getElementById("map-section").hidden = true; return; }
+  map = L.map("map", {
+    zoomControl: false,
+    attributionControl: true,
+    dragging: !L.Browser.mobile, // one finger scrolls the page on phones; pinch still zooms
+    scrollWheelZoom: false
+  });
+  map.attributionControl.setPrefix(false);
+  tiles = L.tileLayer(tileUrl(), {
+    subdomains: "abcd", maxZoom: 18,
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>'
+  }).addTo(map);
+  markerLayer = L.layerGroup().addTo(map);
+  dark.addEventListener("change", () => { tiles.setUrl(tileUrl()); render(); });
+}
+
+function renderMap(m) {
+  if (!map) return;
+  markerLayer.clearLayers();
+  const colors = {
+    Fog: { fill: cssVar("--fog"), stroke: cssVar("--fog") },
+    Mist: { fill: cssVar("--mist"), stroke: cssVar("--mist") },
+    null: { fill: cssVar("--surface"), stroke: cssVar("--muted") }
+  };
+  const bounds = [];
+  // Clear first so fog and mist dots sit on top
+  [...m.rows].reverse().forEach(row => {
+    const c = colors[row.label];
+    row.spots.forEach(s => {
+      bounds.push([s.lat, s.lon]);
+      const dot = L.circleMarker([s.lat, s.lon], {
+        radius: row.label ? 9 : 6, weight: 2, color: c.stroke, fillColor: c.fill, fillOpacity: 1
+      });
+      dot.bindTooltip(s.name, { direction: "top", offset: [0, -8], permanent: !!row.label });
+      dot.on("click", () => {
+        const card = document.getElementById("spot-" + row.key);
+        if (!card) return;
+        card.scrollIntoView({ behavior: "smooth", block: "center" });
+        card.classList.add("flash");
+        setTimeout(() => card.classList.remove("flash"), 1500);
+      });
+      dot.addTo(markerLayer);
+    });
+  });
+  if (!fitted && bounds.length) {
+    map.fitBounds(bounds, { padding: [24, 24] });
+    fitted = true;
+  }
+  map.invalidateSize();
+}
+
+// --- Page ------------------------------------------------------------------
+function render() {
+  const m = state.mornings[state.sel];
+  if (!m) return;
+  renderTabs();
+  renderSummary(m);
+  renderMap(m);
+  renderSpots(m);
 }
 
 function renderObservation(d) {
@@ -358,13 +517,20 @@ async function load() {
       const res = await fetch("config.json", { cache: "no-store" });
       if (!res.ok) throw new Error("config.json could not be loaded");
       C = await res.json();
+      initMap();
     }
     const now = nowLocal(C.timezone);
+    state.now = now;
     const [forecast, obs] = await Promise.allSettled([fetchForecast(C.spots), fetchObservation()]);
 
     if (forecast.status === "fulfilled") {
-      const { rows, sunrise } = renderSpots(groupByGrid(C.spots, forecast.value), now);
-      renderSummary(rows, sunrise);
+      const groups = groupByGrid(C.spots, forecast.value);
+      // The next two sunrises after now: the coming morning and the one after
+      const d0 = groups[0].data.daily;
+      const dates = d0.time.filter((t, i) => d0.sunrise[i] > now).slice(0, 2);
+      state.mornings = dates.map(date => buildMorning(groups, date, now));
+      if (state.sel >= state.mornings.length) state.sel = 0;
+      render();
     } else {
       document.getElementById("headline").textContent = "Forecast didn't load";
       document.getElementById("window").textContent = "Check your connection and tap Refresh.";
