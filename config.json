@@ -13,6 +13,17 @@
     "spread_c": 1.0,
     "wind_kmh": 7
   },
+  "sky": {
+    "sun_max_percent": 40,
+    "grey_min_percent": 80
+  },
+  "rime_max_temp_c": 0,
+  "observation": {
+    "name": "Köln/Bonn airport",
+    "lat": 50.866,
+    "lon": 7.143
+  },
+  "history_url": "https://raw.githubusercontent.com/PFC-TAK/fog-alert/main/history.csv",
   "spots": [
     {"name": "Poller Wiesen", "lat": 50.9183, "lon": 6.9767, "area": "Poll"},
     {"name": "Rheinpark", "lat": 50.948, "lon": 6.976, "area": "Deutz"},
@@ -21,6 +32,7 @@
     {"name": "Fühlinger See", "lat": 51.0198, "lon": 6.924, "area": "Fühlingen"},
     {"name": "Fähre Langel", "lat": 51.0555, "lon": 6.9168, "area": "Merkenich"},
     {"name": "Worringer Bruch", "lat": 51.055, "lon": 6.865, "area": "Worringen"},
+    {"name": "Altdeponie", "lat": 50.9855, "lon": 6.9042, "area": "Ossendorf, Butzweilerstr."},
     {"name": "Weißer Bogen", "lat": 50.873, "lon": 7.036, "area": "Weiß"},
     {"name": "Decksteiner Weiher", "lat": 50.912, "lon": 6.889, "area": "Lindenthal"},
     {"name": "Grüngürtel", "lat": 50.94, "lon": 6.872, "area": "Müngersdorf"},

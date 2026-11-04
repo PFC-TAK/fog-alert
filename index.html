@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex">
 <title>Köln Fog Check</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="Fog Check">
+<meta name="theme-color" content="#eef1f2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1418" media="(prefers-color-scheme: dark)">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;600&display=swap">
@@ -143,6 +148,17 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
 .cell.fog { background: var(--fog); border-color: var(--fog); color: var(--fog-text); }
 .cell.mist { background: var(--mist); border-color: var(--mist); color: var(--mist-text); }
 .cell.sunrise { box-shadow: inset 0 -3px 0 var(--accent); }
+.sky { font-size: 0.85rem; color: var(--fg); }
+.sky .rime { color: var(--accent); font-weight: 600; }
+.record { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: grid; gap: 10px; }
+.record p { margin: 0; font-size: 0.9rem; }
+.table-wrap { overflow-x: auto; }
+.record table { width: 100%; border-collapse: collapse; font: 0.8rem var(--font-data); font-variant-numeric: tabular-nums; }
+.record th { text-align: left; font-weight: 500; color: var(--muted); padding: 4px 8px 4px 0; border-bottom: 1px solid var(--line); }
+.record td { padding: 5px 8px 5px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.record tr:last-child td { border-bottom: 0; }
+.result-hit { color: var(--fg); font-weight: 500; }
+.result-miss, .result-false { color: var(--accent); }
 .legend { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; color: var(--muted); font-size: 0.8rem; }
 .legend .cell { width: auto; padding: 2px 8px; }
 footer { color: var(--muted); font-size: 0.8rem; display: grid; gap: 8px; }
@@ -167,6 +183,7 @@ footer a { color: var(--accent); }
     <div class="tabs" id="tabs" role="tablist" aria-label="Which morning"></div>
     <h2 id="headline">Checking the forecast…</h2>
     <p id="window"></p>
+    <p id="extra" class="note" hidden></p>
     <p id="note" class="note" hidden></p>
   </section>
 
@@ -184,6 +201,11 @@ footer a { color: var(--accent); }
     <div class="spots" id="spots"></div>
   </section>
 
+  <section>
+    <p class="label">Track record at the airport</p>
+    <div class="record" id="record"><p class="facts">Loading…</p></div>
+  </section>
+
   <footer>
     <div class="legend">
       <span class="cell fog">Fog</span>
@@ -191,7 +213,7 @@ footer a { color: var(--accent); }
       <span class="cell">Clear</span>
       <span class="cell sunrise">Sunrise hour</span>
     </div>
-    <div>Gap is temperature minus dew point. Under 1° the air is close to saturated. Tap a spot name to open it in Google Maps, or a dot on the map to jump to that spot.</div>
+    <div>Gap is temperature minus dew point. Under 1° the air is close to saturated. "Sun after sunrise" means little mid or high cloud above the fog; "grey" means it stays covered. Rime is flagged when the fog hours are at or below freezing. Tap a spot name to open it in Google Maps, or a dot on the map to jump to that spot.</div>
     <div>Forecast: DWD ICON-D2 (2 km) via <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>. Observation: DWD station data via <a href="https://brightsky.dev/" target="_blank" rel="noopener">Bright Sky</a>. Map: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors.</div>
   </footer>
 </div>
@@ -199,8 +221,9 @@ footer a { color: var(--accent); }
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const FOG_CODES = new Set([45, 48]);
-const HOURLY = ["weather_code", "temperature_2m", "dew_point_2m", "wind_speed_10m", "cloud_cover_low"];
-const OBS_LAT = 50.866, OBS_LON = 7.143; // Köln/Bonn airport
+const HOURLY = ["weather_code", "temperature_2m", "dew_point_2m", "wind_speed_10m",
+  "cloud_cover_low", "cloud_cover_mid", "cloud_cover_high"];
+const RIME_CODE = 48;
 const D2_RANGE_HOURS = 45; // ICON-D2 reaches ~48 h; past that the forecast comes from the 7 km ICON-EU
 
 let C = null;
@@ -280,7 +303,7 @@ async function fetchForecast(spots, withVisibility = true) {
 }
 
 async function fetchObservation() {
-  const params = new URLSearchParams({ lat: OBS_LAT, lon: OBS_LON, tz: C.timezone });
+  const params = new URLSearchParams({ lat: C.observation.lat, lon: C.observation.lon, tz: C.timezone });
   const res = await fetch("https://api.brightsky.dev/current_weather?" + params);
   if (!res.ok) throw new Error(`Observation service answered ${res.status}`);
   return res.json();
@@ -300,13 +323,28 @@ function hoursAroundSunrise(data, date, now) {
     const h = {
       time: t, code: col("weather_code", i), vis: col("visibility", i),
       temp: col("temperature_2m", i), dew: col("dew_point_2m", i),
-      wind: col("wind_speed_10m", i), low: col("cloud_cover_low", i)
+      wind: col("wind_speed_10m", i), low: col("cloud_cover_low", i),
+      mid: col("cloud_cover_mid", i), high: col("cloud_cover_high", i)
     };
     h.label = classify(h);
     hours.push(h);
   });
   return { sunrise, hours };
 }
+
+// "sun", "some sun" or "grey": mid/high cloud (whichever is more) on average from the sunrise hour on
+function skyAfterSunrise(hours, sunrise) {
+  const covers = hours
+    .filter(h => h.time.slice(0, 13) >= sunrise.slice(0, 13) && (h.mid != null || h.high != null))
+    .map(h => Math.max(h.mid || 0, h.high || 0));
+  if (!covers.length) return null;
+  const avg = covers.reduce((a, b) => a + b, 0) / covers.length;
+  if (avg <= C.sky.sun_max_percent) return "sun";
+  if (avg >= C.sky.grey_min_percent) return "grey";
+  return "some sun";
+}
+
+const rimeLikely = hits => hits.some(h => h.code === RIME_CODE || (h.temp != null && h.temp <= C.rime_max_temp_c));
 
 function groupByGrid(spots, forecasts) {
   const groups = new Map();
@@ -319,20 +357,23 @@ function groupByGrid(spots, forecasts) {
   return [...groups.values()];
 }
 
-// Work out fog/mist per spot group for one morning, sorted fog first, then mist, earliest first.
+// Work out fog/mist per spot group for one morning: fog first, then mist; sunny first, then earliest.
 function buildMorning(groups, date, now) {
   const rank = { Fog: 0, Mist: 1, null: 2 };
+  const skyRank = { sun: 0, "some sun": 1, null: 2, grey: 3 };
   const rows = groups.map(g => {
     const r = hoursAroundSunrise(g.data, date, now);
     const hits = r.hours.filter(h => h.label);
     const label = hits.some(h => h.label === "Fog") ? "Fog" : hits.length ? "Mist" : null;
-    return { ...g, ...r, hits, label };
+    const sky = label ? skyAfterSunrise(r.hours, r.sunrise) : null;
+    return { ...g, ...r, hits, label, sky, rime: rimeLikely(hits) };
   });
-  rows.sort((a, b) => rank[a.label] - rank[b.label] ||
+  rows.sort((a, b) => rank[a.label] - rank[b.label] || skyRank[a.sky] - skyRank[b.sky] ||
     (a.hits[0]?.time || "~").localeCompare(b.hits[0]?.time || "~"));
-  const count = label => rows.filter(r => r.label === label).reduce((n, r) => n + r.spots.length, 0);
-  const fog = count("Fog"), mist = count("Mist");
-  return { date, rows, sunrise: rows[0].sunrise, fog, mist, label: fog ? "Fog" : mist ? "Mist" : null };
+  const count = test => rows.filter(test).reduce((n, r) => n + r.spots.length, 0);
+  const fog = count(r => r.label === "Fog"), mist = count(r => r.label === "Mist");
+  const sun = count(r => r.label && r.sky === "sun"), rime = count(r => r.label && r.rime);
+  return { date, rows, sunrise: rows[0].sunrise, fog, mist, sun, rime, label: fog ? "Fog" : mist ? "Mist" : null };
 }
 
 function el(tag, cls, text) {
@@ -369,6 +410,13 @@ function renderSummary(m) {
   const start = fromMs(toMs(m.sunrise) - C.minutes_before_sunrise * 60000);
   const end = fromMs(toMs(m.sunrise) + C.minutes_after_sunrise * 60000);
   document.getElementById("window").textContent = `Sunrise ${hm(m.sunrise)} · checking ${hm(start)}–${hm(end)}`;
+
+  const extra = document.getElementById("extra");
+  const bits = [];
+  if (m.sun) bits.push(`Sun on the fog after sunrise: ${plural(m.sun)}.`);
+  if (m.rime) bits.push(`Rime possible: ${plural(m.rime)}.`);
+  extra.textContent = bits.join(" ");
+  extra.hidden = !bits.length;
 
   const note = document.getElementById("note");
   if (state.sel > 0) {
@@ -421,6 +469,16 @@ function renderSpots(m) {
     const pick = row.hits[0] || row.hours.reduce((best, h) =>
       (h.temp - h.dew) < (best.temp - best.dew) ? h : best, row.hours[0]);
     card.append(head);
+    if (row.label && (row.sky || row.rime)) {
+      const sky = el("div", "sky");
+      const skyText = { sun: "Sun after sunrise", "some sun": "Some sun after sunrise", grey: "Grey above, little sun" }[row.sky];
+      if (skyText) sky.append(skyText);
+      if (row.rime) {
+        if (skyText) sky.append(" · ");
+        sky.append(el("span", "rime", "rime likely"));
+      }
+      card.append(sky);
+    }
     if (row.label) card.append(strip); // clear spots stay compact
     if (pick) card.append(el("div", "facts", `${hm(pick.time)} · ${facts(pick)}`));
     box.append(card);
@@ -461,12 +519,15 @@ function renderMap(m) {
   // Clear first so fog and mist dots sit on top
   [...m.rows].reverse().forEach(row => {
     const c = colors[row.label];
-    row.spots.forEach(s => {
+    row.spots.forEach((s, idx) => {
       bounds.push([s.lat, s.lon]);
       const dot = L.circleMarker([s.lat, s.lon], {
         radius: row.label ? 9 : 6, weight: 2, color: c.stroke, fillColor: c.fill, fillOpacity: 1
       });
-      dot.bindTooltip(s.name, { direction: "top", offset: [0, -8], permanent: !!row.label });
+      // Spots sharing a forecast square sit close together: one label for the group keeps them readable
+      const permanent = !!row.label && idx === 0;
+      const text = permanent ? row.spots.map(x => x.name).join(" + ") : s.name;
+      dot.bindTooltip(text, { direction: "top", offset: [0, -8], permanent });
       dot.on("click", () => {
         const card = document.getElementById("spot-" + row.key);
         if (!card) return;
@@ -510,6 +571,55 @@ function renderObservation(d) {
   box.replaceChildren(main, el("div", "facts", facts(h) || "No values reported"));
 }
 
+// --- Track record (history.csv, written by the evening run) ----------------
+async function fetchHistory() {
+  const res = await fetch(C.history_url, { cache: "no-store" });
+  if (res.status === 404) return [];
+  if (!res.ok) throw new Error(`History answered ${res.status}`);
+  const [head, ...lines] = (await res.text()).trim().split(/\r?\n/);
+  const keys = head.split(",");
+  return lines.filter(Boolean).map(l => {
+    const vals = l.split(",");
+    return Object.fromEntries(keys.map((k, i) => [k, vals[i] || ""]));
+  });
+}
+
+function renderRecord(rows) {
+  const box = document.getElementById("record");
+  const done = rows.filter(r => r.observed).slice(-30);
+  if (!done.length) {
+    box.replaceChildren(el("p", null,
+      "Collecting data. Each evening the alert saves its forecast for the airport, and the next evening it checks that against what the DWD station there measured. The first comparison shows up here after two evening runs."));
+    return;
+  }
+  const foggy = v => v === "Fog" || v === "Mist";
+  const result = r => foggy(r.forecast) && foggy(r.observed) ? ["hit", "result-hit"]
+    : foggy(r.observed) ? ["missed", "result-miss"]
+    : foggy(r.forecast) ? ["false alarm", "result-false"] : ["quiet", ""];
+  const forecastN = done.filter(r => foggy(r.forecast)).length;
+  const observedN = done.filter(r => foggy(r.observed)).length;
+  const hits = done.filter(r => foggy(r.forecast) && foggy(r.observed)).length;
+  const times = n => (n === 1 ? "once" : `${n} times`);
+  const summary = `Last ${done.length} morning${done.length > 1 ? "s" : ""}: fog or mist was forecast ${times(forecastN)}` +
+    (forecastN ? ` and came true ${times(hits)}` : "") +
+    `. It was measured ${times(observedN)}` + (observedN ? `, and ${hits} of those ${hits === 1 ? "was" : "were"} forecast.` : ".");
+
+  const table = el("table");
+  const thead = el("tr");
+  ["Morning", "Forecast", "Measured", "Result"].forEach(t => thead.append(el("th", null, t)));
+  table.append(thead);
+  for (const r of done.slice(-10).reverse()) {
+    const tr = el("tr");
+    const [text, cls] = result(r);
+    const measured = r.observed + (r.min_visibility_m && foggy(r.observed) ? ` (${fmtVis(Number(r.min_visibility_m)).replace("vis ", "")})` : "");
+    tr.append(el("td", null, dayLabel(r.date)), el("td", null, r.forecast), el("td", null, measured), el("td", cls, text));
+    table.append(tr);
+  }
+  const wrap = el("div", "table-wrap");
+  wrap.append(table);
+  box.replaceChildren(el("p", null, summary), wrap);
+}
+
 async function load() {
   const app = document.getElementById("app");
   app.classList.add("loading");
@@ -523,7 +633,7 @@ async function load() {
     }
     const now = nowLocal(C.timezone);
     state.now = now;
-    const [forecast, obs] = await Promise.allSettled([fetchForecast(C.spots), fetchObservation()]);
+    const [forecast, obs, history] = await Promise.allSettled([fetchForecast(C.spots), fetchObservation(), fetchHistory()]);
 
     if (forecast.status === "fulfilled") {
       const groups = groupByGrid(C.spots, forecast.value);
@@ -541,6 +651,9 @@ async function load() {
     if (obs.status === "fulfilled") renderObservation(obs.value);
     else document.getElementById("obs").replaceChildren(
       el("span", "facts", "Live observation unavailable right now. The forecast below still works."));
+
+    if (history.status === "fulfilled") renderRecord(history.value);
+    else document.getElementById("record").replaceChildren(el("p", "facts", "Track record couldn't load right now."));
 
     loadedAt = Date.now();
     document.getElementById("stamp").textContent = `Loaded ${hm(now)}`;
