@@ -9,4 +9,5 @@ date,sunrise,forecast,spots_fog,spots_mist,observed,min_visibility_m
 2026-11-12,07:42,Mist,0,1,clear,3800
 2026-11-13,07:43,Mist,1,7,Mist,9000
 2026-11-14,07:45,Fog,14,2,Mist,11200
-2026-11-15,07:47,clear,0,0,,
+2026-11-15,07:47,clear,0,0,clear,27600
+2026-11-16,07:48,clear,0,0,,
